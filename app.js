@@ -1,12 +1,17 @@
-// app.js
 const express = require('express');
+const db = require('./config/database');
+const bodyParser = require('body-parser');
+const cors = require('cors');
+const indexController = require('./src/controllers/indexController');
 const app = express();
 
-const PORT = 3000;
+const corsOptions = {
+    origin: '*',
+  };
 
-app.get('/', (req, res) => {
-  res.send('Hello, Node.js with Express!');
-});
+app.get('/', indexController.handleRootRequest);
+
+const PORT = 3000;
 
 app.listen(PORT, () => {
   console.log(`Server is running on http://localhost:${PORT}`);
