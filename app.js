@@ -1,17 +1,33 @@
 const express = require('express');
-const db = require('./config/database');
+const db = require('./src/config/database');
 const bodyParser = require('body-parser');
 const cors = require('cors');
-const indexController = require('./src/controllers/indexController');
+
 const app = express();
+const PORT = 3000;
 
 const corsOptions = {
     origin: '*',
   };
 
-app.get('/', indexController.handleRootRequest);
+app.use(cors(corsOptions));
+app.use(bodyParser.json());
 
-const PORT = 3000;
+db.connect((err) => {
+    if (err) throw err;
+    console.log('Connected to MySQL database');
+});
+
+const productRoutes = require('./src/routes/productRoutes');
+// const orderRoutes = require('./src/routes/orderRoutes');
+
+app.use('/api/products', productRoutes);
+// app.use('/api/orders', orderRoutes);
+
+app.use((err, req, res, next) => {
+    console.error(err.stack);
+    res.status(500).send('Something went wrong!');
+});
 
 app.listen(PORT, () => {
   console.log(`Server is running on http://localhost:${PORT}`);
