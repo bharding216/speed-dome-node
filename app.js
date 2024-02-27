@@ -3,17 +3,18 @@
 const express = require('express');
 const db = require('./src/config/database');
 const bodyParser = require('body-parser');
-const cors = require('cors');
+// const cors = require('cors');
 const serverless = require('serverless-http');
 
 const app = express();
 const PORT = 3000;
 
-const corsOptions = {
-    origin: 'https://www.speeddomeengineering.com',
-  };
+// const corsOptions = {
+//     origin: 'https://www.speeddomeengineering.com',
+//   };
 
-app.use(cors(corsOptions));
+// app.use(cors(corsOptions));
+
 app.use(bodyParser.json());
 
 db.connect((err) => {
