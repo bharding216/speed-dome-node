@@ -1,0 +1,18 @@
+service: my-express-api
+
+provider:
+  name: aws
+  runtime: nodejs18.x
+  stage: dev
+  region: us-east-2 
+
+functions:
+  app:
+    handler: app.handler
+    # events:
+    #   - http:
+    #       path: /
+    #       method: ANY
+    #   - http:
+    #       path: /{proxy+}
+    #       method: ANY
