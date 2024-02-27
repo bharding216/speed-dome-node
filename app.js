@@ -10,7 +10,7 @@ const app = express();
 const PORT = 3000;
 
 const corsOptions = {
-    origin: '*',
+    origin: 'https://www.speeddomeengineering.com',
   };
 
 app.use(cors(corsOptions));
