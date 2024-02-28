@@ -32,8 +32,9 @@ const webhook = async (req, res) => {
 
     // Check if webhook signing is configured.
     if (process.env.STRIPE_WEBHOOK_SECRET) {
+        console.log('Webhook signing is configured');
 
-        // Retrieve the event by verifying the signature using the raw body and secret.
+        // Retrieve the event from Stripe by verifying the signature using the raw body and secret.
         let event;
         let signature = req.headers['stripe-signature'];
 
@@ -49,6 +50,8 @@ const webhook = async (req, res) => {
         }
         data = event.data;
         eventType = event.type;
+        console.log('Event data:', data);
+        console.log('Event type:', eventType);
     } else {
       // Webhook signing is recommended, but if the secret is not configured in `config.js`,
       // we can retrieve the event data directly from the request body.
@@ -69,6 +72,7 @@ const webhook = async (req, res) => {
         status = 'unknown';
     }
 
+    console.log('Status:', status);
     res.json({ received: true, status: status });
 };
 
