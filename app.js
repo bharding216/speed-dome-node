@@ -3,17 +3,11 @@
 const express = require('express');
 const db = require('./src/config/database');
 const bodyParser = require('body-parser');
-// const cors = require('cors');
 const serverless = require('serverless-http');
+const cors = require('cors');
 
 const app = express();
 const PORT = 3000;
-
-// const corsOptions = {
-//     origin: 'https://www.speeddomeengineering.com',
-//   };
-
-// app.use(cors(corsOptions));
 
 app.use(bodyParser.json());
 
@@ -23,10 +17,20 @@ db.connect((err) => {
 });
 
 const productRoutes = require('./src/routes/productRoutes');
-// const orderRoutes = require('./src/routes/orderRoutes');
+const paymentRoutes = require('./src/routes/paymentRoutes');
+
+
+if (process.env.ENVIRONMENT === 'local') {
+    const corsOptions = {
+        origin: 'http://localhost:5173',
+    };
+
+    app.use(cors(corsOptions));
+}
+
 
 app.use('/api/products', productRoutes);
-// app.use('/api/orders', orderRoutes);
+app.use('/api', paymentRoutes);
 
 app.use((err, req, res, next) => {
     console.error(err.stack);
@@ -35,6 +39,10 @@ app.use((err, req, res, next) => {
 
 module.exports.handler = serverless(app);
 
-// app.listen(PORT, () => {
-//   console.log(`Server is running on http://localhost:${PORT}`);
-// });
+if (process.env.ENVIRONMENT === 'local') {
+    console.log('Running locally');
+
+    app.listen(PORT, () => {
+        console.log(`Server is running on http://localhost:${PORT}`);
+    });
+}
