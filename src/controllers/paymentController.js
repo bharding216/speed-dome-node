@@ -108,21 +108,21 @@ const webhook = async (req, res) => {
 };
 
 const processOrder = async (paymentIntent, cartItems, userEmail, shippingAddress) => {
-    console.log(`Processing order for payment intent: ${paymentIntent.id}`);
+    console.log(`Updating SPEED DOME database for payment intent: ${paymentIntent.id}`);
 
     try {
         await beginTransaction();
     
         // 1. Get or create user
         const [userRows] = await query(
-            'SELECT * FROM users WHERE email = ?',
+            'SELECT * FROM Users WHERE email = ?',
             [userEmail]
         );
 
         let userId;
         if (userRows.length === 0) {
             const [result] = await query(
-                'INSERT INTO users (email) VALUES (?)',
+                'INSERT INTO Users (email) VALUES (?)',
                 [userEmail]
             );
             userId = result.insertId;
