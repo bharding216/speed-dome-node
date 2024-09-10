@@ -102,7 +102,22 @@ const webhook = async (req, res) => {
     res.json({ received: true, status: status });
 };
 
-const processOrder = async (
+const processOrder = async (req, res) => {
+    try {
+      const { paymentIntent, cartItems, userEmail, shippingAddress, firstName, lastName, phone } = req.body;
+      
+      const orderId = await processOrderLogic(paymentIntent, cartItems, userEmail, shippingAddress, firstName, lastName, phone);
+      
+      res.status(200).json({ message: 'Order processed successfully', orderId });
+
+    } catch (error) {
+      console.error('Error processing order:', error);
+      res.status(500).json({ error: 'Failed to process order' });
+    }
+  };
+
+
+const processOrderLogic = async (
     paymentIntent, cartItems, userEmail, shippingAddress, firstName, lastName, phone
 ) => {
     console.log(`Updating SPEED DOME database for payment intent: ${paymentIntent.id}`);
