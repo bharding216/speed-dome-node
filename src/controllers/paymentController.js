@@ -104,10 +104,14 @@ const webhook = async (req, res) => {
 
 const processOrder = async (req, res) => {
     try {
-      const { paymentIntent, cartItems, userEmail, shippingAddress, firstName, lastName, phone } = req.body;
+        console.log('Processing order:', req.body);
+
+        const { paymentIntent, cartItems, userEmail, shippingAddress, firstName, lastName, phone } = req.body;
       
-      const orderId = await processOrderLogic(paymentIntent, cartItems, userEmail, shippingAddress, firstName, lastName, phone);
+        const orderId = await processOrderLogic(paymentIntent, cartItems, userEmail, shippingAddress, firstName, lastName, phone);
       
+        console.log('Order processed successfully:', orderId);
+
       res.status(200).json({ message: 'Order processed successfully', orderId });
 
     } catch (error) {
@@ -127,23 +131,31 @@ const processOrderLogic = async (
     
         // 1. Get or create user
         console.log(`Attempting to find user with email: ${userEmail}`);
-        const [userRows] = await query(
+        const userResult = await query(
             'SELECT * FROM Users WHERE Email = ?',
             [userEmail]
         );
 
-        console.log(`User query result:`, userRows);
+        console.log(`Raw User query result:`, userResult);
 
         let userId;
-        if (!userRows || userRows.length === 0) {
+        if (!userResult || userResult.length === 0) {
             console.log(`User not found. Creating new user with email: ${userEmail}`);
 
-            const [result] = await query(
+            const result = await query(
                 'INSERT INTO Users (Email, FirstName, LastName, Phone) VALUES (?, ?, ?, ?)',
                 [userEmail, firstName || null, lastName || null, phone || null]
             );
-            userId = result.insertId;
-            console.log(`New user created with ID: ${userId}`);
+            console.log("insert query result: ", result);
+
+            if (result && result.insertId) {
+                userId = result.insertId;
+                console.log(`New user created with ID: ${userId}`);
+            } else {
+                console.log('Failed to create new user');
+                throw new Error('Failed to create new user');
+            }
+
 
         } else {
             userId = userRows[0].ID;
@@ -158,16 +170,23 @@ const processOrderLogic = async (
 
         // 2. Create address
         console.log(`Creating address for user ${userId}`);
-        const [addressResult] = await query(
+        console.log(`Shipping address:`, shippingAddress);
+        const addressResult = await query(
             'INSERT INTO Addresses (UserID, Street, City, State, ZipCode, Country) VALUES (?, ?, ?, ?, ?, ?)',
-            [userId, shippingAddress.line1, shippingAddress.city, shippingAddress.state, 
-                shippingAddress.postal_code, shippingAddress.country]
+            [
+                userId,
+                shippingAddress.address.line1 || '',
+                shippingAddress.address.city || '',
+                shippingAddress.address.state || '',
+                shippingAddress.address.postal_code || '',
+                shippingAddress.address.country || ''
+            ]
           );  
         console.log(`Address created with ID: ${addressResult.insertId}`);
           
         // 3. Create order
         const totalAmount = paymentIntent.amount / 100; // Convert cents to dollars
-        const [orderResult] = await query(
+        const orderResult = await query(
         'INSERT INTO Orders (UserID, TotalAmount, Status) VALUES (?, ?, ?)',
         [userId, totalAmount, 'Paid']
         );
@@ -175,6 +194,8 @@ const processOrderLogic = async (
 
         // 4. Create order items
         for (const item of cartItems) {
+            console.log(`Creating order item for product ID: ${item.ID}`);
+            console.log(`Item details:`, item);
             await query(
                 'INSERT INTO OrderItems (OrderID, ProductID, Quantity, Price) VALUES (?, ?, ?, ?)',
                 [orderId, item.ID, item.quantity, item.Price]
@@ -184,9 +205,44 @@ const processOrderLogic = async (
 
         // 5. Create payment record
         console.log(`Creating payment record for order ${orderId}`);
+        console.log("order id: ", orderId);
+        console.log("total amount: ", totalAmount);
+
+        // Fetch the latest PaymentIntent data from Stripe
+        const updatedPaymentIntent = await stripe.paymentIntents.retrieve(paymentIntent.id);
+
+        // Extract payment method details
+        let paymentMethodType = 'Unknown';
+        let paymentMethodDetails = '';
+
+        if (updatedPaymentIntent.latest_charge) {
+            const charge = await stripe.charges.retrieve(updatedPaymentIntent.latest_charge);
+            paymentMethodType = charge.payment_method_details.type;
+            
+            // Get more specific details based on the payment method type
+            switch (paymentMethodType) {
+                case 'card':
+                    paymentMethodDetails = `${charge.payment_method_details.card.brand} **** ${charge.payment_method_details.card.last4}`;
+                    break;
+                case 'bank_transfer':
+                    paymentMethodDetails = charge.payment_method_details.bank_transfer.bank_name;
+                    break;
+                // Add more cases for other payment methods as needed
+                default:
+                    paymentMethodDetails = 'Details not available';
+            }
+        }
+
         await query(
-            'INSERT INTO Payments (OrderID, Amount, PaymentMethod, Status) VALUES (?, ?, ?, ?)',
-            [orderId, totalAmount, 'Stripe', 'Completed']
+            'INSERT INTO Payments (OrderID, Amount, PaymentMethod, PaymentMethodDetails, Status, PaymentIntentID) VALUES (?, ?, ?, ?, ?)',
+            [
+                orderId, 
+                totalAmount, 
+                paymentMethodType, 
+                paymentMethodDetails,
+                updatedPaymentIntent.status, 
+                paymentIntent.id
+            ]
         );
 
         await commit();
