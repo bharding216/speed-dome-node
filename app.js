@@ -27,9 +27,7 @@ if (process.env.ENVIRONMENT === 'local') {
     app.use(cors(corsOptions));
 }
 
-
 app.use('/api/products', productRoutes);
-app.use('/api/webhook', express.raw({ type: 'application/json' }));
 app.use('/api', paymentRoutes);
 
 app.use((err, req, res, next) => {
@@ -37,7 +35,12 @@ app.use((err, req, res, next) => {
     res.status(500).send('Something went wrong!');
 });
 
-module.exports.handler = serverless(app);
+// module.exports.handler = serverless(app);
+module.exports.handler = serverless(app, {
+    request: (req, event, context) => {
+      req.rawBody = event.body;
+    }
+  });
 
 if (process.env.ENVIRONMENT === 'local') {
     console.log('Running locally');

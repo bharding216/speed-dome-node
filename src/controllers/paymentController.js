@@ -56,6 +56,7 @@ const webhook = async (req, res) => {
 
         try {
             console.log('Raw body:', req.rawBody);
+            console.log('Content-Type:', req.get('Content-Type'));
             console.log('Signature:', signature);
             console.log('Secret:', process.env.STRIPE_WEBHOOK_SECRET);
 
