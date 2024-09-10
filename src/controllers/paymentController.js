@@ -189,6 +189,7 @@ const processOrder = async (
 
 const getPaymentStatus = async (req, res) => {
     const paymentIntentId = req.params.paymentIntentId;
+    console.log(`Retrieving payment status for payment intent: ${paymentIntentId}`);
 
     try {
         const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
