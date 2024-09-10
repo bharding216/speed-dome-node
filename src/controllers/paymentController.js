@@ -9,7 +9,7 @@ const rollback = util.promisify(db.rollback).bind(db);
 
 const createPaymentIntent = async (req, res) => {
     try {
-        const { amount, email } = req.body;
+        const { amount } = req.body;
 
         if (!amount || isNaN(amount) || amount <= 0) {
             console.error('Invalid amount:', amount);
@@ -23,7 +23,6 @@ const createPaymentIntent = async (req, res) => {
         const paymentIntent = await stripe.paymentIntents.create({
             amount: amount,
             currency: 'usd',
-            receipt_email: email,
             automatic_payment_methods: { 
                 enabled: true 
             },
@@ -85,33 +84,16 @@ const webhook = async (req, res) => {
   
     if (eventType === 'payment_intent.succeeded') {
         console.log('💰 Payment captured!');
+
         const paymentIntent = data.object;
         console.log('Payment Intent details:', paymentIntent);
 
-        try {
-            const lineItems = await stripe.paymentIntents.retrieve(paymentIntent.id, {
-                expand: ['invoice.lines'],
-            });
-            console.log('Line items:', lineItems.invoice ? lineItems.invoice.lines.data : 'No invoice attached');
+        status = 'success';
 
-            const orderId = await processOrder(
-                paymentIntent,
-                lineItems.invoice ? lineItems.invoice.lines.data : [],
-                paymentIntent.receipt_email,
-                paymentIntent.shipping.address,
-                paymentIntent.shipping.name.split(' ')[0] || '',
-                paymentIntent.shipping.name.split(' ').slice(1).join(' ') || '',
-                paymentIntent.shipping?.phone || ''
-            );
-            status = 'success';
-            console.log(`Order ${orderId} processed successfully`);
-        } catch (error) {
-            console.error('Error processing order:', error);
-            status = 'error';
-        }
     } else if (eventType === 'payment_intent.payment_failed') {
         console.log('❌ Payment failed.');
         status = 'failed';
+
     } else {
         status = 'unknown';
     }
@@ -131,7 +113,7 @@ const processOrder = async (
         // 1. Get or create user
         console.log(`Attempting to find user with email: ${userEmail}`);
         const [userRows] = await query(
-            'SELECT * FROM Users WHERE email = ?',
+            'SELECT * FROM Users WHERE Email = ?',
             [userEmail]
         );
 
