@@ -86,16 +86,17 @@ const webhook = async (req, res) => {
     if (eventType === 'payment_intent.succeeded') {
         console.log('💰 Payment captured!');
         const paymentIntent = data.object;
-
-        console.log('Getting checkout session for payment intent:', paymentIntent.id);
-        const session = await stripe.checkout.sessions.retrieve(paymentIntent.metadata.checkout_session_id);
-        const items = await stripe.checkout.sessions.listLineItems(session.id, { limit: 100 });
-        console.log('Items dot data:', items.data);
+        console.log('Payment Intent details:', paymentIntent);
 
         try {
+            const lineItems = await stripe.paymentIntents.retrieve(paymentIntent.id, {
+                expand: ['invoice.lines'],
+            });
+            console.log('Line items:', lineItems.invoice ? lineItems.invoice.lines.data : 'No invoice attached');
+
             const orderId = await processOrder(
                 paymentIntent,
-                items.data,
+                lineItems.invoice ? lineItems.invoice.lines.data : [],
                 paymentIntent.receipt_email,
                 paymentIntent.shipping.address,
                 paymentIntent.shipping.name.split(' ')[0] || '',
