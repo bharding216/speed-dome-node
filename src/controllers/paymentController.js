@@ -9,7 +9,7 @@ const rollback = util.promisify(db.rollback).bind(db);
 
 const createPaymentIntent = async (req, res) => {
     try {
-        const { amount } = req.body;
+        const { amount, email } = req.body;
 
         if (!amount || isNaN(amount) || amount <= 0) {
             console.error('Invalid amount:', amount);
@@ -23,7 +23,10 @@ const createPaymentIntent = async (req, res) => {
         const paymentIntent = await stripe.paymentIntents.create({
             amount: amount,
             currency: 'usd',
-            automatic_payment_methods: { enabled: true },
+            receipt_email: email,
+            automatic_payment_methods: { 
+                enabled: true 
+            },
         });
 
         res.send({
@@ -114,20 +117,28 @@ const processOrder = async (paymentIntent, cartItems, userEmail, shippingAddress
         await beginTransaction();
     
         // 1. Get or create user
+        console.log(`Attempting to find user with email: ${userEmail}`);
         const [userRows] = await query(
             'SELECT * FROM Users WHERE email = ?',
             [userEmail]
         );
 
+        console.log(`User query result:`, userRows);
+
         let userId;
-        if (userRows.length === 0) {
+        if (!userRows || userRows.length === 0) {
+            console.log(`User not found. Creating new user with email: ${userEmail}`);
+
             const [result] = await query(
                 'INSERT INTO Users (email) VALUES (?)',
                 [userEmail]
             );
             userId = result.insertId;
+            console.log(`New user created with ID: ${userId}`);
+
         } else {
             userId = userRows[0].ID;
+            console.log(`Existing user found with ID: ${userId}`);
         }
 
         // 2. Create address
@@ -169,7 +180,6 @@ const processOrder = async (paymentIntent, cartItems, userEmail, shippingAddress
         console.error('Error processing order:', error);
         throw error;
     }
-
 };
 
 const getPaymentStatus = async (req, res) => {
