@@ -86,12 +86,21 @@ const webhook = async (req, res) => {
     if (eventType === 'payment_intent.succeeded') {
         console.log('💰 Payment captured!');
         const paymentIntent = data.object;
+
+        console.log('Getting checkout session for payment intent:', paymentIntent.id);
+        const session = await stripe.checkout.sessions.retrieve(paymentIntent.metadata.checkout_session_id);
+        const items = await stripe.checkout.sessions.listLineItems(session.id, { limit: 100 });
+        console.log('Items dot data:', items.data);
+
         try {
             const orderId = await processOrder(
                 paymentIntent,
-                req.body.cartItems,
+                items.data,
                 paymentIntent.receipt_email,
-                paymentIntent.shipping.address
+                paymentIntent.shipping.address,
+                paymentIntent.shipping.name.split(' ')[0] || '',
+                paymentIntent.shipping.name.split(' ').slice(1).join(' ') || '',
+                paymentIntent.shipping?.phone || ''
             );
             status = 'success';
             console.log(`Order ${orderId} processed successfully`);
@@ -110,7 +119,9 @@ const webhook = async (req, res) => {
     res.json({ received: true, status: status });
 };
 
-const processOrder = async (paymentIntent, cartItems, userEmail, shippingAddress) => {
+const processOrder = async (
+    paymentIntent, cartItems, userEmail, shippingAddress, firstName, lastName, phone
+) => {
     console.log(`Updating SPEED DOME database for payment intent: ${paymentIntent.id}`);
 
     try {
@@ -130,8 +141,8 @@ const processOrder = async (paymentIntent, cartItems, userEmail, shippingAddress
             console.log(`User not found. Creating new user with email: ${userEmail}`);
 
             const [result] = await query(
-                'INSERT INTO Users (email) VALUES (?)',
-                [userEmail]
+                'INSERT INTO Users (Email, FirstName, LastName, Phone) VALUES (?, ?, ?, ?)',
+                [userEmail, firstName || null, lastName || null, phone || null]
             );
             userId = result.insertId;
             console.log(`New user created with ID: ${userId}`);
@@ -139,13 +150,22 @@ const processOrder = async (paymentIntent, cartItems, userEmail, shippingAddress
         } else {
             userId = userRows[0].ID;
             console.log(`Existing user found with ID: ${userId}`);
+
+            await query(
+                'UPDATE Users SET FirstName = ?, LastName = ?, Phone = ? WHERE ID = ?',
+                [firstName || null, lastName || null, phone || null, userId]
+            );
+            console.log(`Updated information for user ID: ${userId}`);
         }
 
         // 2. Create address
+        console.log(`Creating address for user ${userId}`);
         const [addressResult] = await query(
             'INSERT INTO Addresses (UserID, Street, City, State, ZipCode, Country) VALUES (?, ?, ?, ?, ?, ?)',
-            [userId, shippingAddress.line1, shippingAddress.city, shippingAddress.state, shippingAddress.postal_code, shippingAddress.country]
+            [userId, shippingAddress.line1, shippingAddress.city, shippingAddress.state, 
+                shippingAddress.postal_code, shippingAddress.country]
           );  
+        console.log(`Address created with ID: ${addressResult.insertId}`);
           
         // 3. Create order
         const totalAmount = paymentIntent.amount / 100; // Convert cents to dollars
@@ -157,19 +177,20 @@ const processOrder = async (paymentIntent, cartItems, userEmail, shippingAddress
 
         // 4. Create order items
         for (const item of cartItems) {
-        await query(
-            'INSERT INTO OrderItems (OrderID, ProductID, Quantity, Price) VALUES (?, ?, ?, ?)',
-            [orderId, item.ID, item.quantity, item.Price]
-        );
+            await query(
+                'INSERT INTO OrderItems (OrderID, ProductID, Quantity, Price) VALUES (?, ?, ?, ?)',
+                [orderId, item.ID, item.quantity, item.Price]
+            );
         }
+        console.log(`Order items created successfully`);
 
         // 5. Create payment record
+        console.log(`Creating payment record for order ${orderId}`);
         await query(
-        'INSERT INTO Payments (OrderID, Amount, PaymentMethod, Status) VALUES (?, ?, ?, ?)',
-        [orderId, totalAmount, 'Stripe', 'Completed']
+            'INSERT INTO Payments (OrderID, Amount, PaymentMethod, Status) VALUES (?, ?, ?, ?)',
+            [orderId, totalAmount, 'Stripe', 'Completed']
         );
 
-        // Commit transaction
         await commit();
 
         console.log(`Order processed successfully. Order ID: ${orderId}`);
@@ -178,6 +199,7 @@ const processOrder = async (paymentIntent, cartItems, userEmail, shippingAddress
     } catch (error) {
         await rollback();
         console.error('Error processing order:', error);
+        console.error('Error stack:', error.stack);
         throw error;
     }
 };
