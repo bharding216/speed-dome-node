@@ -234,7 +234,7 @@ const processOrderLogic = async (
         }
 
         await query(
-            'INSERT INTO Payments (OrderID, Amount, PaymentMethod, PaymentMethodDetails, Status, PaymentIntentID) VALUES (?, ?, ?, ?, ?)',
+            'INSERT INTO Payments (OrderID, Amount, PaymentMethod, PaymentMethodDetails, Status, PaymentIntentID) VALUES (?, ?, ?, ?, ?, ?)',
             [
                 orderId, 
                 totalAmount, 
