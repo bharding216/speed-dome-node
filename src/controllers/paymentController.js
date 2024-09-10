@@ -1,6 +1,7 @@
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const db = require('../config/database');
 const util = require('util');
+
 const query = util.promisify(db.query).bind(db);
 const beginTransaction = util.promisify(db.beginTransaction).bind(db);
 const commit = util.promisify(db.commit).bind(db);
@@ -25,9 +26,6 @@ const createPaymentIntent = async (req, res) => {
             automatic_payment_methods: { enabled: true },
         });
 
-        console.log('Payment intent:', paymentIntent)
-        console.log('Payment intent client secret:', paymentIntent.client_secret)
-
         res.send({
             clientSecret: paymentIntent.client_secret,
             message: 'Payment intent created successfully',
@@ -44,6 +42,8 @@ const createPaymentIntent = async (req, res) => {
 };
 
 const webhook = async (req, res) => {
+    console.log('Webhook received');
+
     let data, eventType, status;
 
     // Check if webhook signing is configured.
@@ -55,6 +55,10 @@ const webhook = async (req, res) => {
         let signature = req.headers['stripe-signature'];
 
         try {
+            console.log('Raw body:', req.rawBody);
+            console.log('Signature:', signature);
+            console.log('Secret:', process.env.STRIPE_WEBHOOK_SECRET);
+
             event = stripe.webhooks.constructEvent(
                 req.rawBody,
                 signature,
@@ -165,10 +169,29 @@ const processOrder = async (paymentIntent, cartItems, userEmail, shippingAddress
         throw error;
     }
 
-}
+};
+
+const getPaymentStatus = async (req, res) => {
+    const paymentIntentId = req.params.paymentIntentId;
+
+    try {
+        const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
+        res.send({
+            status: paymentIntent.status,
+        });
+    } catch (error) {
+        console.error('Error retrieving payment intent:', error);
+        res.status(400).send({
+            error: {
+                message: error.message,
+            },
+        });
+    }
+};
 
 module.exports = {
     createPaymentIntent,
     webhook,
     processOrder,
+    getPaymentStatus,
 };

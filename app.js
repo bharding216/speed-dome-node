@@ -19,7 +19,6 @@ db.connect((err) => {
 const productRoutes = require('./src/routes/productRoutes');
 const paymentRoutes = require('./src/routes/paymentRoutes');
 
-
 if (process.env.ENVIRONMENT === 'local') {
     const corsOptions = {
         origin: 'http://localhost:5173',
@@ -30,6 +29,7 @@ if (process.env.ENVIRONMENT === 'local') {
 
 
 app.use('/api/products', productRoutes);
+app.use('/api/webhook', express.raw({ type: 'application/json' }));
 app.use('/api', paymentRoutes);
 
 app.use((err, req, res, next) => {
